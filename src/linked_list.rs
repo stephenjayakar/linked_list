@@ -26,24 +26,15 @@ impl<T> LinkedList<T> {
             pointer: self.head.as_ref().map(|boxed_lln| boxed_lln.deref()),
         }
     }
-    pub fn append(&mut self, val: T) {
+    pub fn push_front(&mut self, val: T) {
         let new_node = LinkedListNode {
             val,
-            next: None,
+            next: self.head.take(),
         };
         self.size += 1;
-        match &mut self.head {
-            None => self.head = Some(Box::new(new_node)),
-            Some(node) => {
-                let mut pointer = node;
-                while let Some(ref mut p) = pointer.next {
-                    pointer = p;
-                }
-                pointer.next = Some(Box::new(new_node));
-            }
-        }
+        self.head = Some(Box::new(new_node));
     }
-    pub fn pop(&mut self) -> Option<T> {
+    pub fn pop_front(&mut self) -> Option<T> {
         let head = self.head.take()?;
         self.head = head.next;
         self.size -= 1;
@@ -104,27 +95,27 @@ mod tests {
     #[test]
     fn print_test() {
         let mut ll = LinkedList::<i32>::new();
-        ll.append(1);
-        ll.append(2);
-        ll.append(3);
-        assert_eq!(format!("{:?}", ll), "(1 . 2 . 3)");
+        ll.push_front(1);
+        ll.push_front(2);
+        ll.push_front(3);
+        assert_eq!(format!("{:?}", ll), "(3 . 2 . 1)");
     }
 
     #[test]
     fn sanity_pop() {
         let mut ll = LinkedList::<i32>::new();
-        ll.append(1);
-        ll.append(2);
-        ll.append(3);
-        assert_eq!(1, ll.pop().unwrap());
+        ll.push_front(1);
+        ll.push_front(2);
+        ll.push_front(3);
+        assert_eq!(3, ll.pop_front().unwrap());
     }
 
     #[test]
     fn sanity_contains() {
         let mut ll = LinkedList::<i32>::new();
-        ll.append(1);
-        ll.append(2);
-        ll.append(3);
+        ll.push_front(1);
+        ll.push_front(2);
+        ll.push_front(3);
         assert!(ll.contains(&1));
         assert!(ll.contains(&2));
         assert!(ll.contains(&3));
@@ -139,7 +130,7 @@ const N: i32 = 10000;
 fn contains(b: &mut Bencher) -> impl Termination {
     let mut ll = LinkedList::<i32>::new();
     for i in 0..N {
-        ll.append(i);
+        ll.push_front(i);
     }
     let guess = -1;
     b.iter(|| {
