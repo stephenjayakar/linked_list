@@ -1,17 +1,56 @@
 use std::fmt;
 use std::ops::Deref;
+const CHUNK_SIZE: usize = 4;
+
 pub struct LinkedList<T> {
     head: Option<Box<LinkedListNode<T>>>,
     size: usize,
 }
 
 struct LinkedListNode<T> {
-    val: T,
+    // for push_front, is filled from back -> front
+    vals: [Option<T>; CHUNK_SIZE],
     next: Option<Box<LinkedListNode<T>>>,
+}
+
+impl<T> LinkedListNode<T> {
+    fn new() -> LinkedListNode<T> {
+        LinkedListNode {
+            // doesn't seem like I can get around this, as
+            // Option doesn't implement Copy :(
+            vals: [None; CHUNK_SIZE],
+            next: None,
+        }
+    }
+    fn next_free_index(&self) -> Option<usize> {
+        let mut index = 0;
+        let mut pointer = &self.vals[index];
+        while pointer.is_none() && index < CHUNK_SIZE {
+            index += 1;
+            pointer = &self.vals[index];
+        }
+        match index {
+            // Case where there isn't free space in the block
+            0 => None,
+            _ => {
+                Some(index - 1)
+            }
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.vals[CHUNK_SIZE - 1].is_none()
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for LinkedListNode<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{:?}", self.vals))
+    }
 }
 
 pub struct LinkedListIterator<'a, T> {
     pointer: Option<&'a LinkedListNode<T>>,
+    chunk_offset: usize,
 }
 
 impl<T> LinkedList<T> {
@@ -22,23 +61,54 @@ impl<T> LinkedList<T> {
         }
     }
     pub fn iter(&self) -> LinkedListIterator<T> {
+        let chunk_offset = if self.head.is_none() {
+            0
+        } else {
+            self.head.as_ref().unwrap().next_free_index().unwrap_or(0)
+        };
         LinkedListIterator {
             pointer: self.head.as_ref().map(|boxed_lln| boxed_lln.deref()),
+            chunk_offset,
         }
     }
     pub fn push_front(&mut self, val: T) {
-        let new_node = LinkedListNode {
-            val,
-            next: self.head.take(),
-        };
+        // case where the list is empty
+        if self.len() == 0 {
+            let mut new_node = LinkedListNode::new();
+            new_node.vals[CHUNK_SIZE - 1] = Some(val);
+            self.head = Some(Box::new(new_node));
+            return
+        }
+        let mut head = self.head.take().unwrap();
+
+        match head.next_free_index() {
+            Some(i) => {
+                head.vals[i] = Some(val);
+                self.head = Some(head);
+            },
+            None => {
+                let mut new_node = LinkedListNode::new();
+                new_node.vals[CHUNK_SIZE - 1] = Some(val);
+                new_node.next = Some(head);
+                self.head = Some(Box::new(new_node));
+            }
+        }
         self.size += 1;
-        self.head = Some(Box::new(new_node));
     }
     pub fn pop_front(&mut self) -> Option<T> {
-        let head = self.head.take()?;
-        self.head = head.next;
+        let mut head = self.head.take()?;
+        let index_to_pop = match head.next_free_index() {
+            None => 0,
+            Some(i) => i + 1
+        };
+        let val = head.vals[index_to_pop].take();
+        if head.is_empty() {
+            self.head = head.next;
+        } else {
+            self.head = Some(head);
+        }
         self.size -= 1;
-        Some(head.val)
+        val
     }
     pub fn is_empty(&self) -> bool {
         self.len() != 0
@@ -61,8 +131,12 @@ impl<'a, T> Iterator for LinkedListIterator<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(p) = self.pointer {
-            let ret_val = &p.val;
-            self.pointer = p.next.as_ref().map(|boxed_lln| boxed_lln.deref());
+            let ret_val = p.vals[self.chunk_offset].as_ref().unwrap();
+            self.chunk_offset += 1;
+            if self.chunk_offset == CHUNK_SIZE {
+                self.chunk_offset = 0;
+                self.pointer = p.next.as_ref().map(|boxed_lln| boxed_lln.deref());
+            }
             Some(ret_val)
         } else {
             None
