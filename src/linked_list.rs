@@ -15,10 +15,11 @@ struct LinkedListNode<T> {
 
 impl<T> LinkedListNode<T> {
     fn new() -> LinkedListNode<T> {
+        let v = vec![None; CHUNK_SIZE];
+
         LinkedListNode {
-            // doesn't seem like I can get around this, as
-            // Option doesn't implement Copy :(
-            vals: [None; CHUNK_SIZE],
+            // TODO: See a better way to get around this
+            vals: [None, None, None, None],
             next: None,
         }
     }
@@ -88,6 +89,7 @@ impl<T> LinkedList<T> {
             },
             None => {
                 let mut new_node = LinkedListNode::new();
+                // TODO: move all array accesses into LinkedListNode
                 new_node.vals[CHUNK_SIZE - 1] = Some(val);
                 new_node.next = Some(head);
                 self.head = Some(Box::new(new_node));
