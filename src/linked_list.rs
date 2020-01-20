@@ -15,8 +15,6 @@ struct LinkedListNode<T> {
 
 impl<T> LinkedListNode<T> {
     fn new() -> LinkedListNode<T> {
-        let v = vec![None; CHUNK_SIZE];
-
         LinkedListNode {
             // TODO: See a better way to get around this
             vals: [None, None, None, None],
@@ -33,9 +31,7 @@ impl<T> LinkedListNode<T> {
         match index {
             // Case where there isn't free space in the block
             0 => None,
-            _ => {
-                Some(index - 1)
-            }
+            _ => Some(index - 1),
         }
     }
     fn is_empty(&self) -> bool {
@@ -45,7 +41,14 @@ impl<T> LinkedListNode<T> {
 
 impl<T: fmt::Debug> fmt::Debug for LinkedListNode<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("{:?}", self.vals))
+        f.write_str("[")?;
+        for i in 0..CHUNK_SIZE {
+            match &self.vals[i] {
+                None => f.write_str(" . ")?,
+                Some(val) => f.write_fmt(format_args!(" {:?} ", val))?
+            };
+        }
+        f.write_str("]")
     }
 }
 
@@ -65,7 +68,10 @@ impl<T> LinkedList<T> {
         let chunk_offset = if self.head.is_none() {
             0
         } else {
-            self.head.as_ref().unwrap().next_free_index().unwrap_or(0)
+            match self.head.as_ref().unwrap().next_free_index() {
+                None => 0,
+                Some(i) => i + 1,
+            }
         };
         LinkedListIterator {
             pointer: self.head.as_ref().map(|boxed_lln| boxed_lln.deref()),
@@ -73,20 +79,21 @@ impl<T> LinkedList<T> {
         }
     }
     pub fn push_front(&mut self, val: T) {
+        self.size += 1;
         // case where the list is empty
-        if self.len() == 0 {
+        if self.len() == 1 {
             let mut new_node = LinkedListNode::new();
             new_node.vals[CHUNK_SIZE - 1] = Some(val);
             self.head = Some(Box::new(new_node));
-            return
+            return;
         }
-        let mut head = self.head.take().unwrap();
 
+        let mut head = self.head.take().unwrap();
         match head.next_free_index() {
             Some(i) => {
                 head.vals[i] = Some(val);
                 self.head = Some(head);
-            },
+            }
             None => {
                 let mut new_node = LinkedListNode::new();
                 // TODO: move all array accesses into LinkedListNode
@@ -95,13 +102,12 @@ impl<T> LinkedList<T> {
                 self.head = Some(Box::new(new_node));
             }
         }
-        self.size += 1;
     }
     pub fn pop_front(&mut self) -> Option<T> {
         let mut head = self.head.take()?;
         let index_to_pop = match head.next_free_index() {
             None => 0,
-            Some(i) => i + 1
+            Some(i) => i + 1,
         };
         let val = head.vals[index_to_pop].take();
         if head.is_empty() {
@@ -123,6 +129,7 @@ impl<T> LinkedList<T> {
         self.head = None;
     }
 }
+
 impl<T: PartialEq> LinkedList<T> {
     pub fn contains(&self, x: &T) -> bool {
         self.iter().any(|e| e == x)
@@ -146,19 +153,13 @@ impl<'a, T> Iterator for LinkedListIterator<'a, T> {
     }
 }
 
-impl<T> fmt::Debug for LinkedList<T>
-    where T: fmt::Debug
-{
+impl<T: fmt::Debug> fmt::Debug for LinkedList<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut pointer = &self.head;
         f.write_str("(")?;
-        let mut count = 0;
-        for val in self.iter() {
-            if count < self.size - 1 {
-                f.write_fmt(format_args!("{:?} . ", val))?;
-            } else {
-                f.write_fmt(format_args!("{:?}", val))?;
-            }
-            count += 1;
+        while !pointer.is_none() {
+            f.write_fmt(format_args!("{:?}", pointer.as_ref().unwrap()))?;
+            pointer = &pointer.as_ref().unwrap().next;
         }
         f.write_str(")")
     }
@@ -171,10 +172,11 @@ mod tests {
     #[test]
     fn print_test() {
         let mut ll = LinkedList::<i32>::new();
-        ll.push_front(1);
-        ll.push_front(2);
-        ll.push_front(3);
-        assert_eq!(format!("{:?}", ll), "(3 . 2 . 1)");
+        for i in 1..8 {
+            ll.push_front(i);
+        }
+        println!("{:?}", ll);
+        assert_eq!(format!("{:?}", ll), "([ .  7  6  5 ][ 4  3  2  1 ])");
     }
 
     #[test]
@@ -199,8 +201,8 @@ mod tests {
     }
 }
 
-use test::Bencher;
 use std::process::Termination;
+use test::Bencher;
 const N: i32 = 10000;
 #[bench]
 fn contains(b: &mut Bencher) -> impl Termination {
