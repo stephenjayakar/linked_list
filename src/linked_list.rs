@@ -121,6 +121,20 @@ mod tests {
         assert!(ll.contains(&3));
         assert!(!ll.contains(&4));
     }
+
+    // if there isn't anything in the list, the head should be None
+    #[test]
+    fn head_none_invariant() {
+        let mut ll = LinkedList::<i32>::new();
+        assert!(ll.head.is_none());
+        ll.push_front(1);
+        assert!(ll.head.is_some());
+        ll.pop_front();
+        assert!(ll.head.is_none());
+        ll.push_front(2);
+        ll.clear();
+        assert!(ll.head.is_none());
+    }
 }
 
 use test::Bencher;
