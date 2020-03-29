@@ -1,5 +1,7 @@
 use std::fmt;
 use std::ops::Deref;
+// !: despite the use of a variable here, this is hardcoded throughout
+//      because of inability to initialize an array w/ a const expr.
 const CHUNK_SIZE: usize = 4;
 
 pub struct LinkedList<T> {
@@ -14,10 +16,9 @@ struct LinkedListNode<T> {
 }
 
 impl<T> LinkedListNode<T> {
-    fn new() -> LinkedListNode<T> {
+    fn new(val: T) -> LinkedListNode<T> {
         LinkedListNode {
-            // TODO: See a better way to get around this
-            vals: [None, None, None, None],
+            vals: [None, None, None, Some(val)],
             next: None,
         }
     }
@@ -36,6 +37,13 @@ impl<T> LinkedListNode<T> {
     }
     fn is_empty(&self) -> bool {
         self.vals[CHUNK_SIZE - 1].is_none()
+    }
+    fn pop(&mut self) -> T {
+        let index_to_pop = match self.next_free_index() {
+            None => 0,
+            Some(i) => i + 1,
+        };
+        self.vals[index_to_pop].take().unwrap()
     }
 }
 
@@ -82,8 +90,7 @@ impl<T> LinkedList<T> {
         self.size += 1;
         // case where the list is empty
         if self.len() == 1 {
-            let mut new_node = LinkedListNode::new();
-            new_node.vals[CHUNK_SIZE - 1] = Some(val);
+            let new_node = LinkedListNode::new(val);
             self.head = Some(Box::new(new_node));
             return;
         }
@@ -95,9 +102,7 @@ impl<T> LinkedList<T> {
                 self.head = Some(head);
             }
             None => {
-                let mut new_node = LinkedListNode::new();
-                // TODO: move all array accesses into LinkedListNode
-                new_node.vals[CHUNK_SIZE - 1] = Some(val);
+                let mut new_node = LinkedListNode::new(val);
                 new_node.next = Some(head);
                 self.head = Some(Box::new(new_node));
             }
@@ -105,18 +110,14 @@ impl<T> LinkedList<T> {
     }
     pub fn pop_front(&mut self) -> Option<T> {
         let mut head = self.head.take()?;
-        let index_to_pop = match head.next_free_index() {
-            None => 0,
-            Some(i) => i + 1,
-        };
-        let val = head.vals[index_to_pop].take();
+        let val = head.pop();
         if head.is_empty() {
             self.head = head.next;
         } else {
             self.head = Some(head);
         }
         self.size -= 1;
-        val
+        Some(val)
     }
     pub fn is_empty(&self) -> bool {
         self.len() != 0
@@ -198,6 +199,12 @@ mod tests {
         assert!(ll.contains(&2));
         assert!(ll.contains(&3));
         assert!(!ll.contains(&4));
+    }
+
+    #[test]
+    fn empty_pop() {
+        let mut ll = LinkedList::<i32>::new();
+        assert_eq!(None, ll.pop_front());
     }
 }
 
