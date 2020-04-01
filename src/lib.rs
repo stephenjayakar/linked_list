@@ -1,4 +1,6 @@
 #![feature(test)]
 #![feature(termination_trait_lib)]
+//! Stephen Jayakar's implementation of a linked list.
 extern crate test;
-pub mod linked_list;
+mod linked_list;
+pub use linked_list::LinkedList;

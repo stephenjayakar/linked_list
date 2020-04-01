@@ -1,5 +1,5 @@
 [package]
-name = "linked_list"
+name = "stephen_ll"
 version = "0.1.0"
 authors = ["Stephen Jayakar <aj12ay@gmail.com>"]
 edition = "2018"
